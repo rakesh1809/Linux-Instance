@@ -1,0 +1,301 @@
+{
+
+	"AWSTemplateFormatVersion": "2010-09-09",
+
+	"Description": "Creating a Linux HIOS-PROD-DL-AZ1-JBOSS-UI-DA-01 server",
+
+	"Mappings": {
+
+		"EnvMap": {
+
+			"PROD": {
+
+				"InstanceType": "c4.2xlarge",
+
+				"SubnetId": "subnet-044f6c3c2f84c87fc",
+
+				"AvailabilityZone": "us-east-1a",
+
+				"HOST" : "HPRODAZ1JUDA01",
+
+				"SnapshotIdEC2": "snap-0e4f313cf0596690f",
+
+				"SecurityGroups": [
+
+					"sg-0d9ab0278a2d4c2d7",
+
+					"sg-0de254903ebb71156",
+
+					"sg-0896d7cf9c41f0115"
+
+				]
+
+			}
+
+		}
+
+	},
+
+	"Parameters": {
+
+		"Environment": {
+
+			"Description": "Gives the environment of the instance e.g. PROD ",
+
+			"Type": "String",
+
+			"Default": "PROD"
+
+		},
+
+		"ImageId": {
+
+			"Description": "Provides the unique ID of the Amazon Machine Image (AMI)",
+
+			"Type": "AWS::EC2::Image::Id",
+
+			"Default": "ami-03101c1ec615931c3"
+
+		},
+
+    "IAMRole": {
+
+            "Description": "The IAM Role to be attached to the instance",
+
+            "Type": "String",
+
+            "Default": "HIOS-EC2-FULL-ACCESS-ROLE"
+
+        }
+
+	},
+
+	"Resources": {
+
+		"EC2Instance": {
+
+			"Type": "AWS::EC2::Instance",
+
+			"Properties": {
+
+				"ImageId": {
+
+					"Ref": "ImageId"
+
+				},
+
+				"InstanceType": {
+
+					"Fn::FindInMap": ["EnvMap", {
+
+						"Ref": "Environment"
+
+					}, "InstanceType"]
+
+				},
+
+        "IamInstanceProfile": {
+
+                    "Ref": "IAMRole"
+
+                },
+
+				"BlockDeviceMappings": [{
+
+					"DeviceName": "/dev/sda1",
+
+					"Ebs": {
+
+            "DeleteOnTermination" : "false",
+
+            "VolumeSize": "50",
+
+						"VolumeType": "gp2"
+
+					}
+
+				}],
+
+				"SecurityGroupIds": {
+
+					"Fn::FindInMap": ["EnvMap", {
+
+						"Ref": "Environment"
+
+					}, "SecurityGroups"]
+
+				},
+
+				"KeyName": "HIOS-PROD",
+
+				"SubnetId": {
+
+					"Fn::FindInMap": ["EnvMap", {
+
+						"Ref": "Environment"
+
+					}, "SubnetId"]
+
+					},
+
+				"UserData": {
+
+					"Fn::Base64": {
+
+						"Fn::Join": [
+
+							"", [
+
+              "#!/bin/bash -v \n",
+
+              "set -x \n",
+
+              "exec > >(tee /var/log/user-data.log|logger -t user-data ) 2>&1 \n",
+
+              "echo BEGIN `date '+%m/%d/%Y %H:%M:%S'`\n",
+
+							"cd /tmp/ \n",
+
+							"wget -d -S -np --no-proxy --no-check-certificate -nH https://github.cms.gov/raw/A9UR/HIOS-CFT-TEMPLATES/patch-1/PROD/DATA-PROD-a?token=AAAI1W5Bhc_wXOpFiZB8Ba-L0hbp4i_Hks5cRh5XwA%3D%3D -O env_build_cft_user_data.sh \n",
+
+							"wget -d -S -np --no-proxy --no-check-certificate -nH https://github.cms.gov/raw/A9UR/HIOS-CFT-TEMPLATES/patch-1/main-common.sh?token=AAAI1SSsghqyPwhloh5KkIos2cHCH432ks5cRh56wA%3D%3D -O common.sh \n",
+
+							"chmod 774 /tmp/*.sh \n",
+
+							"export HOST=",{"Fn::FindInMap": ["EnvMap",{"Ref": "Environment"},"HOST"]}," \n",
+
+							". /tmp/env_build_cft_user_data.sh \n",
+
+              "yum update -y \n"
+
+							]
+
+						]
+
+					}
+
+				},
+
+				"Tags": [
+
+				{"Key": "Name","Value": "HIOS-PROD-DL-AZ1-JBOSS-UI-DA-01"},
+
+				{"Key": "Application","Value": "HIOS"},
+
+				{"Key": "Business","Value": "DATA"},
+
+				{"Key": "Stack","Value": "PROD"},
+
+				{"Key": "HOSTNAME","Value": {"Fn::FindInMap": ["EnvMap",{"Ref": "Environment"},"HOST"]}},
+
+				{"Key": "cpm backup","Value": "4HR"}
+
+				],
+
+				"Volumes": [{
+
+					"VolumeId": {
+
+						"Ref": "HIOSPROD"
+
+					},
+
+					"Device": "/dev/xvdb"
+
+				}]
+
+			}
+
+		},
+
+		"HIOSPROD": {
+
+			"Type": "AWS::EC2::Volume",
+
+			"Properties": {
+
+				"AvailabilityZone": {
+
+					"Fn::FindInMap": ["EnvMap", {
+
+						"Ref": "Environment"
+
+					}, "AvailabilityZone"]
+
+				},
+
+				"Tags": [
+
+				{"Key": "Name","Value": "HIOS-PROD-DL-AZ1-JBOSS-UI-DA-01"},
+
+				{"Key": "Application","Value": "HIOS"},
+
+				{"Key": "Business","Value": "DATA"},
+
+				{"Key": "Stack","Value": "PROD"},
+
+				{"Key": "HOSTNAME","Value": {"Fn::FindInMap": ["EnvMap",{"Ref": "Environment"},"HOST"]}},
+
+				{"Key": "cpm backup","Value": "4HR"}
+
+				],
+
+				"SnapshotId": {
+
+					"Fn::FindInMap": ["EnvMap", {
+
+						"Ref": "Environment"
+
+					}, "SnapshotIdEC2"]
+
+				},
+
+				"Size": "100",
+
+				"VolumeType": "gp2"
+
+			}
+
+		}
+
+	},
+
+	"Outputs": {
+
+	"IMPLStackDetails":
+
+    {
+
+      "Description": "HIOS-PROD-DL-AZ1-JBOSS-UI-DA-01 Stack Details",
+
+      "Value":
+
+      {
+
+        "Fn::Join":
+
+        [
+
+          "|",
+
+          [
+
+            { "Ref" : "ImageId" },
+
+            { "Ref" : "IAMRole" },
+
+            { "Ref" : "EC2Instance" },
+
+            { "Fn::FindInMap": ["EnvMap",{"Ref": "Environment"},"HOST"]}
+
+          ]
+
+        ]
+
+      }
+
+    }
+
+	}
+
+}
