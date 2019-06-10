@@ -1,0 +1,652 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Aws Cloud formation template to create an amazon linux ec2 instance with asg and elb and jboss server with scaling",
+    "Parameters": {
+        "StackName": {
+            "Default": "stack-",
+            "Description": "Stack name",
+            "Type": "String",
+            "AllowedPattern": "[a-z][a-z0-9\\-]*-",
+            "ConstraintDescription": "must begin with a letter and contain only small case characters, numbers and hyphen and should end with hyphen."
+        },
+        "VpcId": {
+            "Type": "AWS::EC2::VPC::Id",
+            "Description": "VpcId of your existing Virtual Private Cloud (VPC)",
+            "ConstraintDescription": "must be the VPC Id of an existing Virtual Private Cloud."
+        },
+        "Subnets": {
+            "Type": "List<AWS::EC2::Subnet::Id>",
+            "Description": "The list of SubnetIds in your Virtual Private Cloud (VPC)",
+            "ConstraintDescription": "must be a list of at least two existing subnets associated with at least two different availability zones. They should be residing in the selected Virtual Private Cloud."
+        },
+        "InstanceType": {
+            "Default": "t2.micro",
+            "AllowedValues": [
+                "t1.micro",
+                "t2.nano",
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "m1.small",
+                "m1.medium",
+                "m1.large",
+                "m1.xlarge",
+                "m2.xlarge",
+                "m2.2xlarge",
+                "m2.4xlarge",
+                "m3.medium",
+                "m3.large",
+                "m3.xlarge",
+                "m3.2xlarge",
+                "m4.large",
+                "m4.xlarge",
+                "m4.2xlarge",
+                "m4.4xlarge",
+                "m4.10xlarge",
+                "c1.medium",
+                "c1.xlarge",
+                "c3.large",
+                "c3.xlarge",
+                "c3.2xlarge",
+                "c3.4xlarge",
+                "c3.8xlarge",
+                "c4.large",
+                "c4.xlarge",
+                "c4.2xlarge",
+                "c4.4xlarge",
+                "c4.8xlarge",
+                "g2.2xlarge",
+                "g2.8xlarge",
+                "r3.large",
+                "r3.xlarge",
+                "r3.2xlarge",
+                "r3.4xlarge",
+                "r3.8xlarge",
+                "i2.xlarge",
+                "i2.2xlarge",
+                "i2.4xlarge",
+                "i2.8xlarge",
+                "d2.xlarge",
+                "d2.2xlarge",
+                "d2.4xlarge",
+                "d2.8xlarge",
+                "hi1.4xlarge",
+                "hs1.8xlarge",
+                "cr1.8xlarge",
+                "cc2.8xlarge",
+                "cg1.4xlarge"
+            ],
+            "ConstraintDescription": "must be a valid EC2 instance type.",
+            "Type": "String"
+        },
+        "EbsVolumeSize": {
+            "Default": "5",
+            "Type": "Number"
+        },
+        "MaxClusterSize": {
+          "Default": "5",
+          "Type": "Number",
+          "Description": "Maximum number of instances in cluster"
+        },
+        "MinClusterSize": {
+          "Default": "1",
+          "Type": "Number",
+          "Description": "Minimum number of instances in cluster"
+        },
+        "DesiredClusterSize": {
+          "Default": "1",
+          "Type": "Number",
+          "Description": "Desired number of instances in cluster"
+        },
+        "KeyName": {
+            "Description": "Key pair to be used to access jboss instances",
+            "Type" : "AWS::EC2::KeyPair::KeyName",
+            "ConstraintDescription" : "must be the name of an existing EC2 KeyPair."
+        },
+        "CidrForJbossSSH": {
+            "Description": "Cidr to allow ssh from. e.g 192.168.1.1/32",
+            "Type": "String",
+            "MinLength": "9",
+            "MaxLength": "18",
+            "Default": "0.0.0.0/0",
+            "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+            "ConstraintDescription": "must be a valid IP CIDR range of the form x.x.x.x/x."
+        }
+    },
+    "Resources": {
+        "JbossASGLaunchConfiguration": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "Metadata" : {
+              "AWS::CloudFormation::Designer": {
+               "id": "7412a5a7-de2d-425c-bb21-311e4de5da9f"
+              },
+              "AWS::CloudFormation::Init" : {
+                "config" : {
+                  "packages" : {
+                      "yum" : {
+                        "httpd" : [],
+                        "git": []
+                      }
+                    },
+                  "files" : {
+                    "/var/www/html/index.html" : {
+                      "content" : { "Fn::Join" : ["\n", [
+                        "<h1>Congratulations, you have successfully launched a sample app</h1>"
+                      ]]},
+                      "mode"    : "000644",
+                      "owner"   : "root",
+                      "group"   : "root"
+                    },
+
+                    "/etc/cfn/cfn-hup.conf" : {
+                      "content" : { "Fn::Join" : ["", [
+                        "[main]\n",
+                        "stack=", { "Ref" : "AWS::StackId" }, "\n",
+                        "region=", { "Ref" : "AWS::Region" }, "\n"
+                      ]]},
+                      "mode"    : "000400",
+                      "owner"   : "root",
+                      "group"   : "root"
+                    },
+
+                    "/etc/cfn/hooks.d/cfn-auto-reloader.conf" : {
+                      "content": { "Fn::Join" : ["", [
+                        "[cfn-auto-reloader-hook]\n",
+                        "triggers=post.update\n",
+                        "path=Resources.LaunchConfig.Metadata.AWS::CloudFormation::Init\n",
+                        "action=/opt/aws/bin/cfn-init -v ",
+                        "         --stack ", { "Ref" : "AWS::StackName" },
+                        "         --resource JbossASGLaunchConfiguration ",
+                        "         --region ", { "Ref" : "AWS::Region" }, "\n",
+                        "runas=root\n"
+                      ]]},
+                      "mode"    : "000400",
+                      "owner"   : "root",
+                      "group"   : "root"
+                    }
+                  },
+
+                  "services" : {
+                    "sysvinit" : {
+                      "httpd"   : { "enabled" : "true", "ensureRunning" : "true" },
+                      "cfn-hup" : { "enabled" : "true", "ensureRunning" : "true",
+                                    "files" : ["/etc/cfn/cfn-hup.conf", "/etc/cfn/hooks.d/cfn-auto-reloader.conf"]}
+                    }
+                  }
+                }
+              }
+            },
+            "Properties": {
+                "LaunchConfigurationName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            {
+                                "Ref": "StackName"
+                            },
+                            "jboss-asg-lc"
+                        ]
+                    ]
+                },
+                "ImageId": "ami-0ff8a91507f77f867",
+                "AssociatePublicIpAddress": true,
+                "KeyName": {
+                    "Ref": "KeyName"
+                },
+                "SecurityGroups": [
+                    {
+                        "Ref": "JbossInstanceSecurityGroup"
+                    }
+                ],
+                "InstanceType": {
+                    "Ref": "InstanceType"
+                },
+                "BlockDeviceMappings": [
+                    {
+                        "DeviceName": "/dev/sdk",
+                        "Ebs": {
+                            "VolumeSize": "5"
+                        }
+                    },
+                    {
+                        "DeviceName": "/dev/sdc",
+                        "VirtualName": "ephemeral0"
+                    }
+                ],
+                "UserData" : {
+                 "Fn::Base64" : {
+                  "Fn::Join" : ["", [
+                   "#!/bin/bash -xe\n",
+                   "yum update -y aws-cfn-bootstrap\n",
+
+                   "yum update -y aws-cli\n",
+
+                   "/opt/aws/bin/cfn-init -v ",
+                   "         --stack ", { "Ref" : "AWS::StackName" },
+                   "         --resource JbossASGLaunchConfiguration ",
+                   "         --region ", { "Ref" : "AWS::Region" }, "\n",
+
+                   "/opt/aws/bin/cfn-signal -e $? ",
+                   "         --stack ", { "Ref" : "AWS::StackName" },
+                   "         --resource JbossAsgGroup ",
+                   "         --region ", { "Ref" : "AWS::Region" }, "\n"
+                  ]]
+                }
+              }
+            }
+        },
+        "JbossAsgGroup": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "Properties": {
+                "AutoScalingGroupName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            {
+                                "Ref": "StackName"
+                            },
+                            "jboss-asg"
+                        ]
+                    ]
+                },
+                "VPCZoneIdentifier": {
+                    "Ref": "Subnets"
+                },
+                "LaunchConfigurationName": {
+                    "Ref": "JbossASGLaunchConfiguration"
+                },
+                "MinSize": {"Ref":"MinClusterSize"},
+                "MaxSize": {"Ref":"MaxClusterSize"},
+                "DesiredCapacity": {"Ref":"DesiredClusterSize"},
+                "Cooldown": "300",
+                "TargetGroupARNs" : [ { "Ref" : "ALBTargetGroup" } ]
+            },
+            "CreationPolicy": {
+                "ResourceSignal": {
+                    "Timeout": "PT15M",
+                    "Count": "1"
+                }
+            },
+            "UpdatePolicy": {
+                "AutoScalingRollingUpdate": {
+                    "MinInstancesInService": "1",
+                    "MaxBatchSize": "1",
+                    "PauseTime": "PT15M",
+                    "WaitOnResourceSignals": "true"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "3d6c8846-8c20-46c1-973a-32d63ffc4782"
+                }
+            }
+        },
+        "JbossScaleUpPolicy": {
+            "Type": "AWS::AutoScaling::ScalingPolicy",
+            "Properties": {
+                "AdjustmentType": "ChangeInCapacity",
+                "AutoScalingGroupName": {
+                    "Ref": "JbossAsgGroup"
+                },
+                "Cooldown": "300",
+                "ScalingAdjustment": 1
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "a3a06aaf-580a-467d-81e7-15cb93992979"
+                }
+            }
+        },
+        "JbossScaleDownPolicy": {
+            "Type": "AWS::AutoScaling::ScalingPolicy",
+            "Properties": {
+                "AdjustmentType": "ChangeInCapacity",
+                "AutoScalingGroupName": {
+                    "Ref": "JbossAsgGroup"
+                },
+                "Cooldown": "300",
+                "ScalingAdjustment": -1
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "0848d0b4-b65b-445f-a02d-949f1900782e"
+                }
+            }
+        },
+        "CPUAlarmHigh": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "AlarmDescription": "Scale-up if CPU > 90% for 10 minutes",
+                "MetricName": "CPUUtilization",
+                "Namespace": "AWS/EC2",
+                "Statistic": "Average",
+                "Period": "300",
+                "EvaluationPeriods": "2",
+                "Threshold": "90",
+                "AlarmActions": [
+                    {
+                        "Ref": "JbossScaleUpPolicy"
+                    }
+                ],
+                "Dimensions": [
+                    {
+                        "Name": "AutoScalingGroupName",
+                        "Value": {
+                            "Ref": "JbossAsgGroup"
+                        }
+                    }
+                ],
+                "ComparisonOperator": "GreaterThanThreshold"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "b091b646-d4be-4606-b071-0cf05e275c11"
+                }
+            }
+        },
+        "CPUAlarmLow": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "AlarmDescription": "Scale-down if CPU < 70% for 10 minutes",
+                "MetricName": "CPUUtilization",
+                "Namespace": "AWS/EC2",
+                "Statistic": "Average",
+                "Period": "300",
+                "EvaluationPeriods": "2",
+                "Threshold": "70",
+                "AlarmActions": [
+                    {
+                        "Ref": "JbossScaleDownPolicy"
+                    }
+                ],
+                "Dimensions": [
+                    {
+                        "Name": "AutoScalingGroupName",
+                        "Value": {
+                            "Ref": "JbossAsgGroup"
+                        }
+                    }
+                ],
+                "ComparisonOperator": "LessThanThreshold"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "91483d66-42e7-4519-b2b3-257ff38995ee"
+                }
+            }
+        },
+        "JbossLoadBalancerSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Enable HTTP to the load balancer from everywhere",
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "80",
+                        "ToPort": "80",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "VpcId"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "ab0b5e8d-6536-4189-b0dc-3fabcad8509f"
+                }
+            }
+        },
+        "JbossLoadBalancer": {
+            "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+            "Properties": {
+                "Subnets": {
+                    "Ref": "Subnets"
+                },
+                "SecurityGroups": [
+                    {
+                        "Ref": "JbossLoadBalancerSecurityGroup"
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "4ac52381-473b-46a9-808f-04303bcdf8f1"
+                }
+            }
+        },
+        "JbossInstanceSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Enable SSH access and HTTP from the load balancer only",
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "22",
+                        "ToPort": "22",
+                        "CidrIp": {
+                            "Ref": "CidrForJbossSSH"
+                        }
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "80",
+                        "ToPort": "80",
+                        "SourceSecurityGroupId": {
+                            "Fn::Select": [
+                                0,
+                                {
+                                    "Fn::GetAtt": [
+                                        "JbossLoadBalancer",
+                                        "SecurityGroups"
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "VpcId"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "ab0b5e8d-6536-4189-b0dc-3fabcad8509f"
+                }
+            }
+        },
+        "ALBTargetGroup": {
+            "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+            "Properties": {
+                "HealthCheckIntervalSeconds": 30,
+                "HealthCheckTimeoutSeconds": 5,
+                "HealthyThresholdCount": 3,
+                "Port": 80,
+                "Protocol": "HTTP",
+                "UnhealthyThresholdCount": 8,
+                "VpcId": {
+                    "Ref": "VpcId"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "7f3481ab-528c-40ae-96d1-63b841fac242"
+                }
+            }
+        },
+        "ALBListener": {
+            "Type": "AWS::ElasticLoadBalancingV2::Listener",
+            "Properties": {
+                "DefaultActions": [
+                    {
+                        "Type": "forward",
+                        "TargetGroupArn": {
+                            "Ref": "ALBTargetGroup"
+                        }
+                    }
+                ],
+                "LoadBalancerArn": {
+                    "Ref": "JbossLoadBalancer"
+                },
+                "Port": "80",
+                "Protocol": "HTTP"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "1253511b-e6b5-4745-851b-b91221c9a46b"
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "JbossLoadBalancerURL": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "JbossLoadBalancer",
+                    "DNSName"
+                ]
+            },
+            "Description": "DNS Name for load balancer"
+        }
+    },
+    "Metadata": {
+        "AWS::CloudFormation::Designer": {
+            "3d6c8846-8c20-46c1-973a-32d63ffc4782": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 360,
+                    "y": 30
+                },
+                "z": 1,
+                "embeds": [],
+                "isassociatedwith": [
+                    "7412a5a7-de2d-425c-bb21-311e4de5da9f"
+                ]
+            },
+            "7412a5a7-de2d-425c-bb21-311e4de5da9f": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 190,
+                    "y": 120
+                },
+                "z": 1,
+                "embeds": [],
+                "isassociatedwith": [
+                    "ab0b5e8d-6536-4189-b0dc-3fabcad8509f"
+                ]
+            },
+            "0848d0b4-b65b-445f-a02d-949f1900782e": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 360,
+                    "y": 120
+                },
+                "z": 1,
+                "embeds": [],
+                "isassociatedwith": [
+                    "3d6c8846-8c20-46c1-973a-32d63ffc4782"
+                ]
+            },
+            "91483d66-42e7-4519-b2b3-257ff38995ee": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 360,
+                    "y": 240
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "a3a06aaf-580a-467d-81e7-15cb93992979": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 510,
+                    "y": 120
+                },
+                "z": 1,
+                "embeds": [],
+                "isassociatedwith": [
+                    "3d6c8846-8c20-46c1-973a-32d63ffc4782"
+                ]
+            },
+            "b091b646-d4be-4606-b071-0cf05e275c11": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 510,
+                    "y": 240
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "7f3481ab-528c-40ae-96d1-63b841fac242": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -40,
+                    "y": 240
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "4ac52381-473b-46a9-808f-04303bcdf8f1": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 60,
+                    "y": 120
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "1253511b-e6b5-4745-851b-b91221c9a46b": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -40,
+                    "y": 120
+                },
+                "z": 1,
+                "embeds": [],
+                "isassociatedwith": [
+                    "4ac52381-473b-46a9-808f-04303bcdf8f1"
+                ]
+            },
+            "ab0b5e8d-6536-4189-b0dc-3fabcad8509f": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 60,
+                    "y": 240
+                },
+                "z": 1,
+                "embeds": []
+            }
+        }
+    }
+}

@@ -1,0 +1,56 @@
+echo "Script $0 BEGIN with params - '$@' - `date '+%m/%d/%Y %H:%M:%S'`"
+. /tmp/common.sh
+
+MNT=opt/hios
+yum install -y perl python gcc libdbi-dbd-mysql git ftp patch sharutils dos2unix bind-utils mailx wget dump 
+yum -y update
+if [ "X`grep ^Banner /etc/ssh/sshd_config`" != "X" ]; then sed -i'_orig' '/^#/! s/Banner/#Banner/g' /etc/ssh/sshd_config; fi
+service sshd restart
+cp -av /etc/cloud/templates/hosts.redhat.tmpl /etc/cloud/templates/hosts.redhat.tmpl_orig
+echo -ne "${AWS_IP_ADDR} ${FULLHOST} ${HOST}\n\n" >> /etc/cloud/templates/hosts.redhat.tmpl
+echo -ne "${AWS_IP_ADDR} ${FULLHOST} ${HOST}\n\n" >> /etc/hosts
+echo -ne "fs-d910ae93:/ /mnt/efs efs defaults,_netdev 0 0\n\n" >> /etc/hosts
+sed -i'_orig' -r "s/(HOSTNAME=).*/\1${FULLHOST}/g" /etc/sysconfig/network
+sed -i'_orig' -r 's/(- +set_hostname)/#\1/g' /etc/cloud/cloud.cfg
+sed -i -r 's/(- +update_hostname)/#\1/g' /etc/cloud/cloud.cfg
+hostname "${FULLHOST}"
+export TZ='America/New_York'
+ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime
+echo ZONE=\"${TZ}\"> /etc/sysconfig/clock
+service ntpd restart
+mkdir -p /${MNT}/aws
+mkdir -p /${MNT}/dev
+touch /${MNT}/dev/extraswap
+chmod 600 /${MNT}/dev/extraswap
+mount /dev/xvdb /${MNT}
+cp /etc/fstab /etc/fstab.bak
+echo -ne "\n/dev/xvdb /${MNT} ext4 defaults,nofail 0 2\n" >> /etc/fstab
+fallocate -l 2G /${MNT}/dev/extraswap
+sleep 60
+mkswap /${MNT}/dev/extraswap
+swapon /${MNT}/dev/extraswap
+swapon -s
+echo -ne "\n/${MNT}/dev/extraswap none swap sw 0 0\n" >> /etc/fstab
+USRNAME=jboss
+useradd -m -r ${USRNAME}
+chown -R ${USRNAME}:${USRNAME} /${MNT}
+mkdir /usr/local/java
+mkdir /opt/doc-repo
+cd /usr/local/java/
+cp -v /${MNT}/jdk-8u181-linux-x64.tar.gz .
+tar -xvf jdk-8u181-linux-x64.tar.gz
+chown -R ${USRNAME}:${USRNAME} *
+cd /opt/hios/ 
+chown -R ${USRNAME}:${USRNAME} *
+cd /opt/hios/jboss-eap-6.4/
+grep -rli '10.234.188.219' * | xargs -i@ sed -i 's/10.234.188.219/'${AWS_IP_ADDR}'/g' @
+mkdir -p /opt/hios-conf
+mkdir -p /opt/doc-repo
+cp -R /${MNT}/ws /opt/hios-conf/
+mount -tv nfs -o  nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 10.234.185.94:/ /opt/hios-conf
+mount -tv nfs -o  nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 10.234.184.245:/ /opt/hios-conf
+mount -tv nfs -o  nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 10.234.184.97:/ /opt/hios-conf
+find /${MNT} -type d -exec chmod 775 {} \;
+find /${MNT} -type f -exec chmod 774 {} \;
+ls -ltra /opt/hios-conf
+echo "Script $0 END `date '+%m/%d/%Y %H:%M:%S'`"\

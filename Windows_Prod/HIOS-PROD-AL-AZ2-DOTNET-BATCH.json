@@ -1,0 +1,121 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "Creating a windows batch process server for dotnet application in prod",
+	"Outputs": {},
+	"Mappings": {
+		"EnvMap": {
+			"prod": {
+				"InstanceType": "m5.large",
+				"SubnetId": "subnet-01246e520c8f1e2fd",
+				"AvailabilityZone": "us-east-1b",
+				"SecurityGroups": [
+					"sg-0896d7cf9c41f0115",
+					"sg-0de254903ebb71156",
+					"sg-0380923e253e66d43"
+
+				]
+			}
+		}
+	},
+	"Parameters": {
+		"Environment": {
+			"Description": "Gives the environment of the instance",
+			"Type": "String",
+			"Default": "prod"
+		},
+		"ImageId": {
+			"Description": "Provides the unique ID of the Amazon Machine Image (AMI)",
+			"Type": "AWS::EC2::Image::Id",
+			"Default": "ami-0ff6a04f8b722d66b"
+		},
+		"IAMRole": {
+			"Description": "The IAM Role to be attached to the instance",
+			"Type": "String",
+			"Default": "HIOS-EC2-FULL-ACCESS-ROLE"
+		}
+  },
+		"Resources": {
+			"HPRODAZ2DNBT01": {
+				"Type": "AWS::EC2::Instance",
+				"Properties": {
+					"ImageId": {
+						"Ref": "ImageId"
+					},
+					"InstanceType": {
+						"Fn::FindInMap": [
+							"EnvMap",
+							{
+								"Ref": "Environment"
+							},
+							"InstanceType"
+						]
+					},
+					"IamInstanceProfile": {
+						"Ref": "IAMRole"
+					},
+					"BlockDeviceMappings": [{
+						"DeviceName": "/dev/sda1",
+						"Ebs": {
+							"VolumeSize": "100",
+							"VolumeType": "gp2"
+						}
+					}],
+					"SecurityGroupIds": {
+						"Fn::FindInMap": [
+							"EnvMap",
+							{
+								"Ref": "Environment"
+							},
+							"SecurityGroups"
+						]
+					},
+					"KeyName": "HIOS-PROD",
+					"SubnetId": "subnet-05b12573219feb77a",
+					"UserData": {
+						"Fn::Base64": {
+							"Fn::Join": [
+								"",
+								[
+									"<powershell>\n",
+									"Initialize-Disk -Number 1\n",
+									"New-Parition -DiskNumber 1 -DriveNumber D -UseMaximumSize\n",
+									"Set-Disk -Number 1 -IsOffline $False\n",
+									"Set-Disk -Number 1 -IsReadonly $False\n",
+									"cd D:\n",
+									"aws s3 cp s3://dotnet-files/ . --recursive\n",
+									"exec > >(tee /var/log/user-data.log|logger -t user-data ) 2>&1 \n",
+									"<powershell>"
+								]
+							]
+						}
+					},
+					"Tags": [{
+							"Key": "Name",
+							"Value": "HIOS-PROD-AL-AZ2-DOTNET-BATCH-01"
+						},
+						{
+							"Key": "application",
+							"Value": "hios"
+						},
+						{
+							"Key": "business",
+							"Value": "batch"
+						},
+						{
+							"Key": "HOSTNAME",
+							"Value": "HPRODAZ2DNBT01"
+
+						},
+						{
+							"Key": "stack",
+							"Value": "impl1"
+						},
+						{
+							"Key": "cpm backup",
+							"Value": "4HR"
+						}
+					]
+				}
+			}
+    }
+  }

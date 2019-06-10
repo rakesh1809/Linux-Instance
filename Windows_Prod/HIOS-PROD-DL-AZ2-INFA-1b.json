@@ -1,0 +1,331 @@
+{
+   "AWSTemplateFormatVersion":"2010-09-09",
+   "Description":"Creating windows informatica server in az2",
+   "Outputs":{},
+   "Mappings":{
+      "EnvMap":{
+         "prod":{
+         "InstanceType":"r4.2xlarge",
+        "SubnetId":"subnet-07827030183a9124b",
+         "AvailabilityZone":"us-east-1b",
+         "SnapshotIdEC2":"snap-0fa4ee3029ffbf854",
+         "SecurityGroups":[
+           "sg-0896d7cf9c41f0115",
+					"sg-0de254903ebb71156",
+           "sg-0b160eb94085d79de"
+
+
+         ]
+   }
+      }
+   },
+   "Parameters":{
+      "Environment":{
+         "Description":"Gives the environment of the instance",
+         "Type":"String",
+         "Default":"prod"
+      },
+      "ImageId":{
+         "Description":"Provides the unique ID of the Amazon Machine Image (AMI)",
+         "Type":"AWS::EC2::Image::Id",
+         "Default":"ami-0ff6a04f8b722d66b"
+      },
+      "IAMRole": {
+  "Description": "The IAM Role to be attached to the instance",
+  "Type": "String",
+  "Default": "HIOS-EC2-FULL-ACCESS-ROLE"
+}
+  },
+  "Resources": {
+  "HPRODAZ1INFA01" : {
+    "Type" : "AWS::EC2::Instance",
+    "Properties" : {
+      "ImageId":{
+ "Ref":"ImageId"
+},
+"InstanceType":{
+    "Fn::FindInMap":[
+       "EnvMap",
+       {
+          "Ref":"Environment"
+       },
+       "InstanceType"
+    ]
+ },
+ "IamInstanceProfile": {
+   "Ref": "IAMRole"
+ },
+ "AvailabilityZone":{
+     "Fn::FindInMap":[
+        "EnvMap",
+        {
+           "Ref":"Environment"
+        },
+        "AvailabilityZone"
+     ]
+  },
+  "SecurityGroupIds":{
+     "Fn::FindInMap":[
+        "EnvMap",
+        {
+           "Ref":"Environment"
+        },
+        "SecurityGroups"
+     ]
+  },
+   "KeyName" : "HIOS-PROD",
+             "SubnetId" : "subnet-07827030183a9124b",
+             "BlockDeviceMappings":[
+        {
+           "DeviceName":"/dev/sda1",
+           "Ebs":{
+              "VolumeSize":"200",
+              "VolumeType":"gp2"
+           }
+        }
+     ],
+     "UserData": {
+     "Fn::Base64": {
+       "Fn::Join": [
+         "",
+         [
+           "<powershell>\n",
+           "Initialize-Disk -Number 1\n",
+           "New-Parition -DiskNumber 1 -DriveNumber D -UseMaximumSize\n",
+           "Set-Disk -Number 1 -IsOffline $False\n",
+           "Set-Disk -Number 1 -IsReadonly $False\n",
+           "cd D:\n",
+           "aws s3 cp s3://dotnet-files/ . --recursive\n",
+           "exec > >(tee /var/log/user-data.log|logger -t user-data ) 2>&1 \n",
+           "<powershell>"
+         ]
+       ]
+     }
+   },
+     "Tags":[
+        {
+           "Key":"Name",
+           "Value":"HIOS-PROD-DL-AZ2-INFA-1b"
+        },
+        {
+           "Key":"application",
+           "Value":"hios"
+        },
+        {
+           "Key":"business",
+           "Value":"INFA"
+        },
+        {
+        "Key":"HOSTNAME",
+        "Value":"HPRODAZ1INFA01"
+
+      },
+        {
+           "Key":"stack",
+           "Value":"prod"
+        },
+        {
+           "Key":"cpm backup",
+           "Value":"4HR"
+        }
+     ],
+     "Volumes":[
+        {
+           "VolumeId":{
+              "Ref":"HIOStest3"
+           },
+           "Device":"/dev/xvdf"
+        }
+     ]
+   }
+ },
+ "HIOStest3":{
+    "Type":"AWS::EC2::Volume",
+    "Properties":{
+       "AvailabilityZone":{
+          "Fn::FindInMap":[
+             "EnvMap",
+             {
+                "Ref":"Environment"
+             },
+             "AvailabilityZone"
+          ]
+       },
+       "Tags":[
+          {
+             "Key":"Name",
+             "Value":"HIOS-PROD-DL-AZ2-INFA-1b-D-DRIVE"
+          },
+          {
+             "Key":"application",
+             "Value":"hios"
+          },
+          {
+          "Key":"HOSTNAME",
+          "Value":"HPRODAZ1INFA01"
+
+        },
+          {
+             "Key":"business",
+             "Value":"INFA"
+          },
+          {
+             "Key":"stack",
+             "Value":"prod"
+          },
+          {
+             "Key":"cpm backup",
+             "Value":"4HR"
+          }
+       ],
+       "SnapshotId":{
+          "Fn::FindInMap":[
+             "EnvMap",
+             {
+                "Ref":"Environment"
+             },
+             "SnapshotIdEC2"
+          ]
+       },
+       "Size":"200",
+       "VolumeType":"gp2"
+    }
+  },
+  "HPRODAZ2INFA02" : {
+    "Type" : "AWS::EC2::Instance",
+    "Properties" : {
+      "ImageId":{
+ "Ref":"ImageId"
+},
+"InstanceType":{
+    "Fn::FindInMap":[
+       "EnvMap",
+       {
+          "Ref":"Environment"
+       },
+       "InstanceType"
+    ]
+ },
+ "IamInstanceProfile": {
+   "Ref": "IAMRole"
+ },
+ "AvailabilityZone":{
+     "Fn::FindInMap":[
+        "EnvMap",
+        {
+           "Ref":"Environment"
+        },
+        "AvailabilityZone"
+     ]
+  },
+  "SecurityGroupIds":{
+     "Fn::FindInMap":[
+        "EnvMap",
+        {
+           "Ref":"Environment"
+        },
+        "SecurityGroups"
+     ]
+  },
+  "KeyName" : "HIOS-PROD",
+            "SubnetId" : "subnet-07827030183a9124b",
+            "BlockDeviceMappings":[
+       {
+          "DeviceName":"/dev/sda1",
+          "Ebs":{
+             "VolumeSize":"200",
+             "VolumeType":"gp2"
+          }
+       }
+    ],
+     "Tags":[
+        {
+           "Key":"Name",
+           "Value":"HIOS-PROD-DL-AZ2-INFA-2b"
+        },
+        {
+        "Key":"HOSTNAME",
+        "Value":"HIMP1AZ1DNWS02"
+
+      },
+        {
+           "Key":"application",
+           "Value":"hios"
+        },
+        {
+           "Key":"business",
+           "Value":"INFA"
+        },
+        {
+           "Key":"stack",
+           "Value":"prod"
+        },
+        {
+           "Key":"cpm backup",
+           "Value":"4HR"
+        }
+     ],
+     "Volumes":[
+        {
+           "VolumeId":{
+              "Ref":"HIOStest4"
+           },
+           "Device":"/dev/xvdf"
+        }
+     ]
+   }
+ },
+ "HIOStest4":{
+    "Type":"AWS::EC2::Volume",
+    "Properties":{
+       "AvailabilityZone":{
+          "Fn::FindInMap":[
+             "EnvMap",
+             {
+                "Ref":"Environment"
+             },
+             "AvailabilityZone"
+          ]
+       },
+       "Tags":[
+          {
+             "Key":"Name",
+             "Value":"HIOS-PROD-DL-AZ2-INFA-2b-D-DRIVE"
+          },
+          {
+          "Key":"HOSTNAME",
+          "Value":"HIMP1AZ1DNWS02"
+
+        },
+          {
+             "Key":"application",
+             "Value":"hios"
+          },
+          {
+             "Key":"business",
+             "Value":"INFA"
+          },
+          {
+             "Key":"stack",
+             "Value":"test2"
+          },
+          {
+             "Key":"cpm backup",
+             "Value":"4HR"
+          }
+       ],
+       "SnapshotId":{
+          "Fn::FindInMap":[
+             "EnvMap",
+             {
+                "Ref":"Environment"
+             },
+             "SnapshotIdEC2"
+          ]
+       },
+       "Size":"200",
+       "VolumeType":"gp2"
+    }
+  }
+}
+}

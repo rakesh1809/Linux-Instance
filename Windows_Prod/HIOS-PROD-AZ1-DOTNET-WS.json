@@ -1,0 +1,340 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "Creating a windows instances for dotnet webservices server in prod(az2)",
+	"Outputs": {},
+	"Mappings": {
+		"EnvMap": {
+			"prod": {
+				"InstanceType": "m5.large",
+				"SubnetId": "subnet-05b12573219feb77a",
+				"AvailabilityZone": "us-east-1a",
+				"SnapshotIdEC2": "snap-058f780df36542a9b",
+				"SecurityGroups": [
+					"sg-0de254903ebb71156",
+					"sg-0896d7cf9c41f0115",
+					"sg-05ce8c05074b35357"
+
+				]
+			}
+		}
+	},
+	"Parameters": {
+		"Environment": {
+			"Description": "Gives the environment of the instance",
+			"Type": "String",
+			"Default": "prod"
+		},
+		"ImageId": {
+			"Description": "Provides the unique ID of the Amazon Machine Image (AMI)",
+			"Type": "AWS::EC2::Image::Id",
+			"Default": "ami-0ff6a04f8b722d66b"
+		},
+		"IAMRole": {
+			"Description": "The IAM Role to be attached to the instance",
+			"Type": "String",
+			"Default": "HIOS-EC2-FULL-ACCESS-ROLE"
+		}
+	},
+	"Resources": {
+		"HIOSPRODDNWS01": {
+			"Type": "AWS::EC2::Instance",
+			"Properties": {
+				"ImageId": {
+					"Ref": "ImageId"
+				},
+				"InstanceType": {
+					"Fn::FindInMap": [
+						"EnvMap",
+						{
+							"Ref": "Environment"
+						},
+						"InstanceType"
+					]
+				},
+				"IamInstanceProfile": {
+					"Ref": "IAMRole"
+				},
+
+				"AvailabilityZone": {
+					"Fn::FindInMap": [
+						"EnvMap",
+						{
+							"Ref": "Environment"
+						},
+						"AvailabilityZone"
+					]
+				},
+				"SecurityGroupIds": {
+					"Fn::FindInMap": [
+						"EnvMap",
+						{
+							"Ref": "Environment"
+						},
+						"SecurityGroups"
+					]
+				},
+				"KeyName": "HIOS-PROD",
+				"SubnetId": "subnet-05b12573219feb77a",
+				"BlockDeviceMappings": [{
+					"DeviceName": "/dev/sda1",
+					"Ebs": {
+						"VolumeSize": "100",
+						"VolumeType": "gp2"
+					}
+				}],
+				"UserData": {
+					"Fn::Base64": {
+						"Fn::Join": [
+							"",
+							[
+								"<powershell>\n",
+								"Initialize-Disk -Number 1\n",
+								"New-Parition -DiskNumber 1 -DriveNumber D -UseMaximumSize\n",
+								"Set-Disk -Number 1 -IsOffline $False\n",
+								"Set-Disk -Number 1 -IsReadonly $False\n",
+								"cd D:\n",
+								"aws s3 cp s3://dotnet-files/ . --recursive\n",
+								"exec > >(tee /var/log/user-data.log|logger -t user-data ) 2>&1 \n",
+								"<powershell>"
+							]
+						]
+					}
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "HIOS-PROD-AL-AZ1-DOTNET-WS-01"
+					},
+					{
+						"Key": "application",
+						"Value": "hios"
+					},
+					{
+						"Key": "business",
+						"Value": "dotnet"
+					},
+					{
+						"Key": "HOSTNAME",
+						"Value": "HPRODAZ1DNWS01"
+
+					},
+					{
+						"Key": "stack",
+						"Value": "prod"
+					},
+					{
+						"Key": "cpm backup",
+						"Value": "4HR"
+					}
+				],
+				"Volumes": [{
+					"VolumeId": {
+						"Ref": "HIOStest3"
+					},
+					"Device": "/dev/xvdf"
+				}]
+			}
+		},
+		"HIOStest3": {
+			"Type": "AWS::EC2::Volume",
+			"Properties": {
+				"Encrypted": "true",
+				"AvailabilityZone": {
+					"Fn::FindInMap": [
+						"EnvMap",
+						{
+							"Ref": "Environment"
+						},
+						"AvailabilityZone"
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "HIOS-PROD-AL-AZ1-DOTNET-WS-01-D-DRIVE"
+					},
+					{
+						"Key": "application",
+						"Value": "hios"
+					},
+					{
+						"Key": "HOSTNAME",
+						"Value": "HPRODAZ1DNWS01"
+
+					},
+					{
+						"Key": "business",
+						"Value": "dotnet"
+					},
+					{
+						"Key": "stack",
+						"Value": "prod"
+					},
+					{
+						"Key": "cpm backup",
+						"Value": "4HR"
+					}
+				],
+				"SnapshotId": {
+					"Fn::FindInMap": [
+						"EnvMap",
+						{
+							"Ref": "Environment"
+						},
+						"SnapshotIdEC2"
+					]
+				},
+				"Size": "100",
+				"VolumeType": "gp2"
+			}
+		},
+		"HIOSPRODDNWS02": {
+			"Type": "AWS::EC2::Instance",
+			"Properties": {
+				"ImageId": {
+					"Ref": "ImageId"
+				},
+				"InstanceType": {
+					"Fn::FindInMap": [
+						"EnvMap",
+						{
+							"Ref": "Environment"
+						},
+						"InstanceType"
+					]
+				},
+				"IamInstanceProfile": {
+					"Ref": "IAMRole"
+				},
+
+				"AvailabilityZone": {
+					"Fn::FindInMap": [
+						"EnvMap",
+						{
+							"Ref": "Environment"
+						},
+						"AvailabilityZone"
+					]
+				},
+				"SecurityGroupIds": {
+					"Fn::FindInMap": [
+						"EnvMap",
+						{
+							"Ref": "Environment"
+						},
+						"SecurityGroups"
+					]
+				},
+				"KeyName": "HIOS-PROD",
+				"SubnetId": "subnet-05b12573219feb77a",
+				"BlockDeviceMappings": [{
+					"DeviceName": "/dev/sda1",
+					"Ebs": {
+						"VolumeSize": "100",
+						"VolumeType": "gp2"
+					}
+				}],
+				"UserData": {
+					"Fn::Base64": {
+						"Fn::Join": [
+							"",
+							[
+								"<powershell>\n",
+								"Initialize-Disk -Number 1\n",
+								"New-Parition -DiskNumber 1 -DriveNumber D -UseMaximumSize\n",
+								"Set-Disk -Number 1 -IsOffline $False\n",
+								"Set-Disk -Number 1 -IsReadonly $False\n",
+								"cd D:\n",
+								"aws s3 cp s3://dotnet-files/ . --recursive\n",
+								"exec > >(tee /var/log/user-data.log|logger -t user-data ) 2>&1 \n",
+								"<powershell>"
+							]
+						]
+					}
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "HIOS-PROD-AL-AZ1-DOTNET-WS-02"
+					},
+					{
+						"Key": "HOSTNAME",
+						"Value": "HPRODAZ1DNWS02"
+
+					},
+					{
+						"Key": "application",
+						"Value": "hios"
+					},
+					{
+						"Key": "business",
+						"Value": "dotnet"
+					},
+					{
+						"Key": "stack",
+						"Value": "prod"
+					},
+					{
+						"Key": "cpm backup",
+						"Value": "4HR"
+					}
+				],
+				"Volumes": [{
+					"VolumeId": {
+						"Ref": "HIOStest4"
+					},
+					"Device": "/dev/xvdf"
+				}]
+			}
+		},
+		"HIOStest4": {
+			"Type": "AWS::EC2::Volume",
+			"Properties": {
+				"Encrypted": "true",
+				"AvailabilityZone": {
+					"Fn::FindInMap": [
+						"EnvMap",
+						{
+							"Ref": "Environment"
+						},
+						"AvailabilityZone"
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "HIOS-PROD-AL-AZ1-DOTNET-WS-02-D-DRIVE"
+					},
+					{
+						"Key": "HOSTNAME",
+						"Value": "HPRODAZ1DNWS02"
+
+					},
+					{
+						"Key": "application",
+						"Value": "hios"
+					},
+					{
+						"Key": "business",
+						"Value": "dotnet"
+					},
+					{
+						"Key": "stack",
+						"Value": "prod"
+					},
+					{
+						"Key": "cpm backup",
+						"Value": "4HR"
+					}
+				],
+				"SnapshotId": {
+					"Fn::FindInMap": [
+						"EnvMap",
+						{
+							"Ref": "Environment"
+						},
+						"SnapshotIdEC2"
+					]
+				},
+				"Size": "100",
+				"VolumeType": "gp2"
+			}
+		}
+	}
+}

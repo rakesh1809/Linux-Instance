@@ -1,0 +1,132 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "Creating a windows web server for dotnet application in dev env",
+	"Outputs": {},
+	"Mappings": {
+		"EnvMap": {
+			"dev": {
+				"InstanceType": "m3.large",
+				"SubnetId": "subnet-0bfd7076bea569c409",
+				"AvailabilityZone": "us-east-1a",
+				"SecurityGroups": [
+					"sg-08c4e6c1fccb4a84c",
+					"sg-04ebe1cf772771161",
+					"sg-09260ecb1d6da3457"
+				]
+			}
+		}
+	},
+	"Parameters": {
+		"Environment": {
+			"Description": "Gives the environment of the instance e.g. dev",
+			"Type": "String",
+			"Default": "dev"
+		},
+		"DomainAdminUser": {
+			"Type": "String",
+			"Default": "sttd"
+		},
+		"DomainDNSName": {
+			"Type": "String",
+			"Default": "OU=Domain Controllers,DC=awscloud,DC=cms,DC=local"
+		},
+		"DomainNetBIOSName": {
+			"Type": "String",
+			"Default": "AWSCLOUD"
+		},
+		"IAMRole": {
+			"Description": "The IAM Role to be attached to the instance",
+			"Type": "String",
+			"Default": "HIOS-EC2-FULL-ACCESS-ROLE"
+		},
+		"ImageId": {
+			"Description": "Provides the unique ID of the Amazon Machine Image (AMI)",
+			"Type": "AWS::EC2::Image::Id",
+			"Default": "ami-02d32b9e556d852c4"
+		}
+	},
+	"Resources": {
+		"HTEST": {
+			"Type": "AWS::EC2::Instance",
+			"Properties": {
+				"ImageId": {
+					"Ref": "ImageId"
+				},
+				"IamInstanceProfile": {
+					"Ref": "IAMRole"
+				},
+				"InstanceType": {
+					"Fn::FindInMap": ["EnvMap", {
+						"Ref": "Environment"
+					}, "InstanceType"]
+				},
+				"BlockDeviceMappings": [{
+					"DeviceName": "/dev/sda1",
+					"Ebs": {
+						"VolumeSize": "100",
+						"VolumeType": "gp2"
+					}
+				}],
+				"SecurityGroupIds": {
+					"Fn::FindInMap": ["EnvMap", {
+						"Ref": "Environment"
+					}, "SecurityGroups"]
+				},
+				"KeyName": "HIOS-DEV",
+				"SubnetId": "subnet-0bfd7076bea569c40",
+				"UserData": {
+					"Fn::Base64": {
+						"Fn::Join": [
+							"", [
+								"<powershell>\n",
+								"Install-WindowsFeature web-server -IncludeAllSubFeature -IncludeManagementTools\n",
+								"Add-WindowsFeature Web-Asp-Net,Web-Asp-Net45\n",
+								"Initialize-Disk -Number 1\n",
+								"New-Parition -DiskNumber 1 -DriveNumber D -UseMaximumSize\n",
+								"Set-ExecutionPolicy unrestricted -Force\n",
+								"New-Item c:/temp -ItemType Directory -Force\n",
+								"set-location c:/temp\n",
+								"read-s3object -bucketname /informatica-files-test -key windows-ad-join.ps1\n",
+								"Invoke-Item C:/temp/windows-ad-join.ps1\n",
+								"</powershell>"
+							]
+						]
+					}
+				},
+					"Tags": [{
+							"Key": "Name",
+							"Value": "HIOS-TEST"
+						},
+						{
+							"Key": "application",
+							"Value": "hios"
+						},
+						{
+							"Key": "HOSTNAME",
+							"Value": "HTEST"
+						},
+						{
+							"Key": "OU",
+							"Value": "OU=Dev,OU=Servers,OU=HIOS,OU=FFM,OU=External,OU=CMS,DC=awscloud,DC=cms,DC=local"
+						},
+						{
+							"Key": "AdministratorsGroup",
+							"Value": "HIOS Dev Admins"
+						},
+						{
+							"Key": "business",
+							"Value": "WS"
+						},
+						{
+							"Key": "stack",
+							"Value": "DEV"
+						},
+						{
+							"Key": "cpm backup",
+							"Value": "4HR"
+						}
+					]
+			}
+	}
+}
+}
