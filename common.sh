@@ -57,7 +57,6 @@ function _setAWSEnv()
 [profile ${AWS_DEFAULT_PROFILE}]
 saml_role = ${AWS_SAML_ROLE}
 region = ${AWS_DEFAULT_REGION}
-
 [default]
 output = table
 region = ${AWS_DEFAULT_REGION}
